@@ -12,4 +12,14 @@ dependencies = [
     "redis[asyncio]>=7.4.0",
     "sqlalchemy>=2.0.49",
     "sqlmodel>=0.0.38",
+    "tortoise-orm[asyncpg]>=1.1.7",
+    "uuid>=1.30",
+    "uuid6>=2025.0.1",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 88

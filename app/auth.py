@@ -1,18 +1,15 @@
 import os
 import uuid
-from datetime import timedelta, timezone, datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import jwt
 import redis.asyncio as aioredis
-from fastapi import Depends, APIRouter, HTTPException, status, Response, Request
-from jwt import InvalidTokenError
 from dotenv import load_dotenv
-from pwdlib import PasswordHash
-from sqlalchemy import select
-
-from app.database import SessionDep
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from jwt import InvalidTokenError
+from pwdlib import PasswordHash
 
 from app.models import User
 from app.schemas import UserCreate, UserRead
@@ -27,43 +24,22 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 password_hash = PasswordHash.recommended()
 DUMMY_HASH = password_hash.hash("dummypassword")
 
-
-redis = aioredis.from_url("redis://localhost:6379", decode_responses=True)
+redis = aioredis.from_url(
+    os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True
+)
 router = APIRouter()
-# --- Models ---
-# class User(SQLModel, table=True):
-#     id: uuid.UUID | None = Field(default_factory=uuid.uuid7, primary_key=True)
-#     username: str = Field(index=True, unique=True)
-#     email: str
-#     hashed_password: str
-#     disabled: bool = False
-#
-
-# class UserCreate(BaseModel):
-#     username: str
-#     email: str
-#     password: str
-#
-# class UserRead(BaseModel):
-#     id: uuid.UUID
-#     username: str
-#     email: str
-#     disabled: bool
-
-# class UserDeleteById(BaseModel):
-#     id: uuid.UUID
-#
-# class UserDeleteByUsername(BaseModel):
-#     username: str
 
 
 # --- Helpers ---
 
+
 def verify_password(plain: str, hashed: str) -> bool:
     return password_hash.verify(plain, hashed)
 
+
 def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
+
 
 def create_access_token(user_id: uuid.UUID) -> str:
     jti = str(uuid.uuid4())
@@ -71,25 +47,28 @@ def create_access_token(user_id: uuid.UUID) -> str:
     return jwt.encode(
         {"sub": str(user_id), "exp": expire, "jti": jti},
         SECRET_KEY,
-        algorithm=ALGORITHM
+        algorithm=ALGORITHM,
     )
+
 
 def create_refresh_token_str() -> str:
     return str(uuid.uuid4())
 
 
 # --- DB Helpers ---
+# No session needed — just call the model directly
 
-async def get_user(session: SessionDep, username: str) -> User | None:
-    result = await session.execute(select(User).where(User.username == username))
-    return result.scalars().first()
 
-async def get_user_by_id(session: SessionDep, user_id: uuid.UUID) -> User | None:
-    result = await session.execute(select(User).where(User.id == user_id))
-    return result.scalars().first()
+async def get_user(username: str) -> User | None:
+    return await User.get_or_none(username=username)
 
-async def authenticate_user(session: SessionDep, username: str, password: str) -> User | bool:
-    user = await get_user(session, username)
+
+async def get_user_by_id(user_id: uuid.UUID) -> User | None:
+    return await User.get_or_none(id=user_id)
+
+
+async def authenticate_user(username: str, password: str) -> User | bool:
+    user = await get_user(username)
     if not user:
         verify_password(password, DUMMY_HASH)
         return False
@@ -100,42 +79,53 @@ async def authenticate_user(session: SessionDep, username: str, password: str) -
 
 # --- Current User Dependency ---
 
-async def get_current_user(request: Request, session: SessionDep) -> User:
+
+async def get_current_user(request: Request) -> User:
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = uuid.UUID(payload.get("sub"))
         jti = payload.get("jti")
-    except (InvalidTokenError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
+    except InvalidTokenError, ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
     if await redis.get(f"blacklist:{jti}"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked"
+        )
 
-    user = await get_user_by_id(session, user_id)
+    user = await get_user_by_id(user_id)
     if not user or user.disabled:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
     return user
 
+
 TokenDep = Annotated[User, Depends(get_current_user)]
+
+
 # --- Routes ---
 
+
 @router.post("/register", response_model=UserRead)
-async def register(user_data: UserCreate, session: SessionDep):
-    existing = await get_user(session, user_data.username)
+async def register(user_data: UserCreate):
+    existing = await get_user(user_data.username)
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
-    user = User(
+
+    user = await User.create(
         username=user_data.username,
         email=user_data.email,
+        display_name=user_data.display_name,
         hashed_password=get_password_hash(user_data.password),
     )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
     return user
 
 
@@ -143,50 +133,90 @@ async def register(user_data: UserCreate, session: SessionDep):
 async def login(
     response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    session: SessionDep,
 ):
-    user = await authenticate_user(session, form_data.username, form_data.password)
+    user = await authenticate_user(form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect credentials"
+        )
 
     access_token = create_access_token(user.id)
     refresh_token_str = create_refresh_token_str()
 
-    await redis.setex(f"refresh:{refresh_token_str}", REFRESH_TOKEN_EXPIRE_DAYS * 86400, str(user.id))
+    await redis.setex(
+        f"refresh:{refresh_token_str}", REFRESH_TOKEN_EXPIRE_DAYS * 86400, str(user.id)
+    )
 
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="lax", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    response.set_cookie(key="refresh_token", value=refresh_token_str, httponly=True, secure=True, samesite="lax", max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token_str,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )
 
     return {"message": "logged in"}
 
 
 @router.post("/token/refresh")
-async def refresh(request: Request, response: Response, session: SessionDep):
+async def refresh(request: Request, response: Response):
     refresh_token_str = request.cookies.get("refresh_token")
     if not refresh_token_str:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token"
+        )
 
     user_id = await redis.get(f"refresh:{refresh_token_str}")
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
 
-    user = await get_user_by_id(session, uuid.UUID(user_id))
+    user = await get_user_by_id(uuid.UUID(user_id))
     if not user or user.disabled:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
 
     await redis.delete(f"refresh:{refresh_token_str}")
 
     new_refresh_str = create_refresh_token_str()
-    await redis.setex(f"refresh:{new_refresh_str}", REFRESH_TOKEN_EXPIRE_DAYS * 86400, str(user.id))
+    await redis.setex(
+        f"refresh:{new_refresh_str}", REFRESH_TOKEN_EXPIRE_DAYS * 86400, str(user.id)
+    )
 
-    response.set_cookie(key="access_token", value=create_access_token(user.id), httponly=True, secure=True, samesite="lax", max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    response.set_cookie(key="refresh_token", value=new_refresh_str, httponly=True, secure=True, samesite="lax", max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+    response.set_cookie(
+        key="access_token",
+        value=create_access_token(user.id),
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_str,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )
 
     return {"message": "token refreshed"}
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response, session: SessionDep):
+async def logout(request: Request, response: Response):
     token = request.cookies.get("access_token")
     if token:
         try:
