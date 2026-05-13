@@ -1,4 +1,6 @@
 import uuid
+
+from redis.backoff import default_backoff
 from tortoise import fields
 from tortoise.models import Model
 
@@ -87,3 +89,17 @@ class Like(Model):
 
     class Meta:
         table = "likes"
+
+
+class Follow(Model):
+    id = fields.UUIDField(pk=True, default=uuid.uuid4)
+    follower: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="following"
+    )
+    following: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
+        "models.User", related_name="followers"
+    )
+
+    class Meta:
+        table = "follow"
+        unique_together = ("follower", "following")

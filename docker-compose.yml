@@ -25,6 +25,8 @@ services:
     depends_on:
       - redis
       - db
+    environment:
+      PYTHONPATH: /app
 
 volumes:
   postgres_data:

@@ -45,3 +45,8 @@ class PostCreate(BaseModel):
     title: str
     content: str
     author: UserRead
+
+
+class FollowRead(BaseModel):
+    follower: uuid.UUID
+    following: uuid.UUID

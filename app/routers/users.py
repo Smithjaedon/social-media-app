@@ -1,14 +1,16 @@
 import uuid
+
 from fastapi import APIRouter, HTTPException
+
 from app.auth import TokenDep
 from app.models import User
-from app.schemas import UserRead, UserDisplayNameRead
+from app.schemas import UserDisplayNameRead, UserRead
 
 router = APIRouter()
 
 
 @router.get("/users")
-async def get_users(token: TokenDep) -> list[UserRead]:
+async def get_users() -> list[UserRead]:
     return await User.all()
 
 
@@ -29,7 +31,9 @@ async def get_user_by_id(user_id: uuid.UUID, token: TokenDep) -> UserRead:
 
 
 @router.patch("/users/display-name")
-async def update_display_name(display_name: str, token: TokenDep) -> UserDisplayNameRead:
+async def update_display_name(
+    display_name: str, token: TokenDep
+) -> UserDisplayNameRead:
     token.display_name = display_name
     await token.save()
     return token

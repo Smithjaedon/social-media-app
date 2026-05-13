@@ -1,3 +1,4 @@
+import random
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -26,14 +27,16 @@ async def get_posts(token: TokenDep) -> list[PostsRead]:
 
 @router.get("/posts/by-username")
 async def get_posts_by_username(username: str, token: TokenDep) -> list[PostsRead]:
-    return await Post.filter(author__username=username).prefetch_related(
+    posts = await Post.filter(author__username=username).prefetch_related(
         "author", "comments"
     )
+    return [PostsRead.model_validate(post) for post in posts]
 
 
 @router.get("/posts/by-user-id")
 async def get_posts_by_user_id(user_id: uuid.UUID, token: TokenDep) -> list[PostsRead]:
-    return await Post.filter(author__id=user_id).prefetch_related("author")
+    posts = await Post.filter(author__id=user_id).prefetch_related("author")
+    return [PostsRead.model_validate(post) for post in posts]
 
 
 @router.post("/posts")
@@ -44,7 +47,7 @@ async def create_post(payload: PostCreate, token: TokenDep) -> PostsRead:
         content=payload.content,
     )
     await post.fetch_related("author")
-    return post
+    return PostsRead.model_validate(post)
 
 
 @router.delete("/posts/{post_id}")
@@ -55,7 +58,7 @@ async def delete_post(post_id: uuid.UUID, token: TokenDep) -> PostsRead:
     if post.author_id != token.id:
         raise HTTPException(status_code=403, detail="Not your post")
     await post.delete()
-    return post
+    return PostsRead.model_validate(post)
 
 
 @router.post("/posts/{post_id}/like")
@@ -83,3 +86,9 @@ async def unlike_post(post_id: uuid.UUID, token: TokenDep):
 
     like_count = await Like.filter(post_id=post_id).count()
     return {"message": "unliked", "like_count": like_count}
+
+
+@router.get("/feed")
+async def get_feed(token: TokenDep):
+    posts = await Post.all().prefetch_related("author", "comments")
+    return random.shuffle(posts)
