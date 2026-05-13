@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi_pagination import Page, add_pagination, paginate
 from tortoise.contrib.fastapi import register_tortoise
 
 from app.auth import router as auth
@@ -18,3 +19,5 @@ app.include_router(auth)
 app.include_router(users.router)
 app.include_router(posts.router)
 app.include_router(follows.router)
+
+add_pagination(app)

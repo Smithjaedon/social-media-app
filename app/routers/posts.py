@@ -2,6 +2,7 @@ import random
 import uuid
 
 from fastapi import APIRouter, HTTPException
+from fastapi_pagination import Page, paginate
 from tortoise.functions import Count
 
 from app.auth import TokenDep
@@ -89,6 +90,7 @@ async def unlike_post(post_id: uuid.UUID, token: TokenDep):
 
 
 @router.get("/feed")
-async def get_feed(token: TokenDep):
+async def get_feed(token: TokenDep) -> Page[PostsRead]:
     posts = await Post.all().prefetch_related("author", "comments")
-    return random.shuffle(posts)
+    random.shuffle(posts)
+    return paginate(posts)

@@ -274,6 +274,20 @@ wheels = [
 ]
 
 [[package]]
+name = "fastapi-pagination"
+version = "0.15.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/11/71/7381bf08f9fb6a890ec41a7ee5191ca564e0af94b899c2006fddaf07d78f/fastapi_pagination-0.15.12.tar.gz", hash = "sha256:914b41e07b8556de34c12d3568c9b7137eb62a3558420061a4acbebf7e729a08", size = 595227, upload-time = "2026-03-28T12:51:03.14Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/2f/644fd77ecac100da965221751ae4f7604e149c58c46c1d96c37e828bb5f7/fastapi_pagination-0.15.12-py3-none-any.whl", hash = "sha256:758e21157b2844feecb2409072f1433e24f2dc9526ae7906aa1a1b28622a970a", size = 60921, upload-time = "2026-03-28T12:51:04.288Z" },
+]
+
+[[package]]
 name = "fastar"
 version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -755,6 +769,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "faker" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "fastapi-pagination" },
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pyjwt" },
     { name = "redis" },
@@ -770,6 +785,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "faker", specifier = ">=40.15.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.136.1" },
+    { name = "fastapi-pagination", specifier = ">=0.15.12" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
     { name = "pyjwt", specifier = ">=2.12.1" },
     { name = "redis", extras = ["asyncio"], specifier = ">=7.4.0" },
