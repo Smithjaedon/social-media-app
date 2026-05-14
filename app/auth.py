@@ -90,7 +90,7 @@ async def get_current_user(request: Request) -> User:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = uuid.UUID(payload.get("sub"))
         jti = payload.get("jti")
-    except InvalidTokenError, ValueError:
+    except (InvalidTokenError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )

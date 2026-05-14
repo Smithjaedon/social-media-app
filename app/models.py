@@ -1,6 +1,5 @@
 import uuid
 
-from redis.backoff import default_backoff
 from tortoise import fields
 from tortoise.models import Model
 

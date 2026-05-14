@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,9 +26,10 @@ class UserDisplayNameRead(BaseModel):
     display_name: str
 
 
-class ProfileRead(BaseModel):
-    display_name: str
-    username: str
+class ProfileRead(UserRead):
+    following_count: int = Field(default=0)
+    follower_count: int = Field(default=0)
+    posts_count: int = Field(default=0)
 
 
 class PostsRead(BaseModel):
@@ -38,15 +40,45 @@ class PostsRead(BaseModel):
     comments_count: int = Field(default=0)
     created_at: datetime
     author: UserRead
+    model_config = ConfigDict(from_attributes=True)
+    
+class PostDetailRead(BaseModel):
+    id: uuid.UUID
+    title: str
+    content: str
+    like_count: int = Field(default=0)
+    comments_count: int = Field(default=0)
+    created_at: datetime
+    author: UserRead
+    comments: list[CommentRead]
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PostCreate(BaseModel):
-    author_id: uuid.UUID
     title: str
     content: str
-    author: UserRead
 
 
 class FollowRead(BaseModel):
-    follower: uuid.UUID
-    following: uuid.UUID
+    follower: UserRead
+    following: UserRead
+
+
+class AuthorRead(BaseModel):
+    id: uuid.UUID
+    display_name: str | None
+    username: str
+
+
+class CommentCreate(BaseModel):
+    content: str
+
+
+class CommentRead(BaseModel):
+    id: uuid.UUID
+    content: str
+    created_at: datetime
+    post_id: uuid.UUID
+    author: AuthorRead
+    like_count: int = Field(default=0)
+    model_config = ConfigDict(from_attributes=True)

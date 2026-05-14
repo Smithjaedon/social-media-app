@@ -7,59 +7,76 @@ from tortoise.functions import Count
 
 from app.auth import TokenDep
 from app.models import Like, Post
-from app.schemas import PostCreate, PostsRead
+from app.schemas import PostCreate, PostDetailRead, PostsRead
 
 router = APIRouter()
 
 
-@router.get("/posts")
-async def get_posts(token: TokenDep) -> list[PostsRead]:
-
+@router.get("/posts", response_model=list[PostsRead])
+async def get_posts(token: TokenDep):
     posts = (
         await Post.all()
         .prefetch_related("author")
         .annotate(
-            like_count=Count("likes"),
-            comment_count=Count("comments"),
+            like_count=Count("likes", distinct=True),
+            comments_count=Count("comments", distinct=True),
         )
     )
-    return [PostsRead.model_validate(post) for post in posts]
+    return posts
 
 
-@router.get("/posts/by-username")
-async def get_posts_by_username(username: str, token: TokenDep) -> list[PostsRead]:
-    posts = await Post.filter(author__username=username).prefetch_related(
-        "author", "comments"
+@router.get("/posts/by-username", response_model=Page[PostsRead])
+async def get_posts_by_username(username: str, token: TokenDep):
+    posts = (
+        await Post.filter(author__username=username)
+        .prefetch_related("author", "comments")
+        .annotate(
+            like_count=Count("likes", distinct=True),
+            comments_count=Count("comments", distinct=True),
+        )
     )
-    return [PostsRead.model_validate(post) for post in posts]
+    return paginate(posts)
 
 
-@router.get("/posts/by-user-id")
-async def get_posts_by_user_id(user_id: uuid.UUID, token: TokenDep) -> list[PostsRead]:
+@router.get("/posts/by-user-id", response_model=Page[PostsRead])
+async def get_posts_by_user_id(user_id: uuid.UUID, token: TokenDep):
     posts = await Post.filter(author__id=user_id).prefetch_related("author")
-    return [PostsRead.model_validate(post) for post in posts]
+    return paginate(posts)
 
 
-@router.post("/posts")
-async def create_post(payload: PostCreate, token: TokenDep) -> PostsRead:
+@router.post("/posts", response_model=PostsRead)
+async def create_post(payload: PostCreate, token: TokenDep):
     post = await Post.create(
         author_id=token.id,
         title=payload.title,
         content=payload.content,
     )
-    await post.fetch_related("author")
-    return PostsRead.model_validate(post)
+    await post.fetch_related("author", "comments", "likes")
+    return post
 
 
-@router.delete("/posts/{post_id}")
-async def delete_post(post_id: uuid.UUID, token: TokenDep) -> PostsRead:
+@router.get("/post/{id}", response_model=PostDetailRead)
+async def get_post(id: uuid.UUID, token: TokenDep):
+    post = (
+        await Post.get(id=id)
+        .prefetch_related("author", "comments__author")
+        .annotate(
+            like_count=Count("likes", distinct=True),
+            comments_count=Count("comments", distinct=True),
+        )
+    )
+    return post
+
+
+@router.delete("/posts/{post_id}", response_model=PostsRead)
+async def delete_post(post_id: uuid.UUID, token: TokenDep):
     post = await Post.get_or_none(id=post_id).prefetch_related("author")
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     if post.author_id != token.id:
         raise HTTPException(status_code=403, detail="Not your post")
     await post.delete()
-    return PostsRead.model_validate(post)
+    return post
 
 
 @router.post("/posts/{post_id}/like")
@@ -89,8 +106,16 @@ async def unlike_post(post_id: uuid.UUID, token: TokenDep):
     return {"message": "unliked", "like_count": like_count}
 
 
-@router.get("/feed")
-async def get_feed(token: TokenDep) -> Page[PostsRead]:
-    posts = await Post.all().prefetch_related("author", "comments")
-    random.shuffle(posts)
+@router.get("/feed", response_model=Page[PostDetailRead])
+async def get_feed(token: TokenDep):
+    posts = (
+        await Post.all()
+        .prefetch_related("author", "comments__author")
+        .exclude(author_id=token.id)
+        .annotate(
+            like_count=Count("likes", distinct=True),
+            comments_count=Count("comments", distinct=True),
+        )
+        .order_by("-like_count")
+    )
     return paginate(posts)
