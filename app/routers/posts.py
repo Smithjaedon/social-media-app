@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 from fastapi_pagination import Page, paginate
+from tortoise.expressions import Q
 from tortoise.functions import Count
 
 from app.auth import TokenDep
@@ -95,7 +96,7 @@ async def like_post(post_id: uuid.UUID, token: TokenDep):
     return {"message": "liked", "like_count": like_count}
 
 
-@router.delete("/posts/{post_id}/like")
+@router.delete("/posts/{post_id}/unlike")
 async def unlike_post(post_id: uuid.UUID, token: TokenDep):
     like = await Like.get_or_none(user_id=token.id, post_id=post_id)
     if not like:
@@ -115,6 +116,7 @@ async def get_feed(token: TokenDep):
         .annotate(
             like_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
+            is_liked=Count("likes", distinct=True, _filter=Q(likes__user_id=token.id)),
         )
         .order_by("-like_count")
     )

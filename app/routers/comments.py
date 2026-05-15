@@ -27,6 +27,17 @@ async def post_comments(
     return comment
 
 
+@router.get("/posts/{id}/comments", response_model=list[CommentRead])
+async def get_comments_from_posts(id: uuid.UUID, token: TokenDep):
+    return (
+        await Comment.filter(post__id=id)
+        .prefetch_related("author")
+        .annotate(like_count=Count("likes"))
+        .distinct()
+        .all()
+    )
+
+
 @router.get("/comments", response_model=list[CommentRead])
 async def get_comments(token: TokenDep):
     return list(

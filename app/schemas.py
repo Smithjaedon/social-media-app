@@ -17,6 +17,7 @@ class UserRead(BaseModel):
     username: str
     email: str
     display_name: str | None = None
+    has_followed: bool = Field(default=False)
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -41,7 +42,8 @@ class PostsRead(BaseModel):
     created_at: datetime
     author: UserRead
     model_config = ConfigDict(from_attributes=True)
-    
+
+
 class PostDetailRead(BaseModel):
     id: uuid.UUID
     title: str
@@ -51,6 +53,7 @@ class PostDetailRead(BaseModel):
     created_at: datetime
     author: UserRead
     comments: list[CommentRead]
+    is_liked: bool = Field(default=False)
     model_config = ConfigDict(from_attributes=True)
 
 
