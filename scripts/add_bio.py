@@ -6,7 +6,7 @@ from faker import Faker
 from tortoise import Tortoise
 
 from app.database import DATABASE_URL
-from app.models import Post, User
+from app.models import Follow, User
 
 fake = Faker()
 
@@ -19,17 +19,14 @@ async def seed():
     await Tortoise.generate_schemas()
 
     users = await User.all()
-    posts = []
-    for _ in range(1000):
-        post = await Post.create(
-            id=uuid.uuid4(),
-            title=fake.sentence(nb_words=6),
-            content=fake.paragraph(nb_sentences=4),
-            author=random.choice(users),
-        )
-        posts.append(post)
+    bios = []
+    for _ in range(80):
+        user = random.choice(users)
+        user.bio = fake.sentence(nb_words=12)
+        await user.save()
+        bios.append(user)
 
-    print(f"Done. {len(posts)} posts created.")
+    print(f"Done. {len(bios)} bios modified.")
     await Tortoise.close_connections()
 
 

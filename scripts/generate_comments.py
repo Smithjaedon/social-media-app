@@ -1,10 +1,13 @@
 import asyncio
 import random
 
+from faker import Faker
 from tortoise import Tortoise
 
 from app.database import DATABASE_URL
-from app.models import Like, Post, User
+from app.models import Comment, Post, User
+
+fake = Faker()
 
 
 async def seed():
@@ -16,17 +19,15 @@ async def seed():
 
     users = await User.all()
     posts = await Post.all()
-    likes = []
-    liked_pairs = set()
-    for _ in range(5000):
+    comments = []
+    for _ in range(400):
         user = random.choice(users)
         post = random.choice(posts)
-        if (user.id, post.id) not in liked_pairs:
-            like = await Like.create(user=user, post=post)
-            likes.append(like)
-            liked_pairs.add((user.id, post.id))
+        content = " ".join(fake.sentences(2))
+        comment = await Comment.create(content=content, author=user, post=post)
+        comments.append(comment)
 
-    print(f"Done. {len(likes)} likes created.")
+    print(f"Done. {len(comments)} comments created.")
     await Tortoise.close_connections()
 
 

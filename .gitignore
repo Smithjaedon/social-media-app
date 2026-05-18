@@ -6,6 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+.idea
+.pi-lens
+.ruff_cache
 # Virtual environments
 .venv
 .env

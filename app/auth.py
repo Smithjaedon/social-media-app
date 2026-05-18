@@ -22,7 +22,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 password_hash = PasswordHash.recommended()
-DUMMY_HASH = password_hash.hash("dummypassword")
 
 redis = aioredis.from_url(
     os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True
@@ -90,7 +89,7 @@ async def get_current_user(request: Request) -> User:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = uuid.UUID(payload.get("sub"))
         jti = payload.get("jti")
-    except (InvalidTokenError, ValueError):
+    except InvalidTokenError, ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )

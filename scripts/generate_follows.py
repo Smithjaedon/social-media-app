@@ -18,7 +18,7 @@ async def seed():
     users = await User.all()
     follows = []
     follow_pairs = set()
-    for _ in range(60):
+    for _ in range(600):
         follower = random.choice(users)
         following = random.choice(users)
         if (

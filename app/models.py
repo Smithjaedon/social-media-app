@@ -8,6 +8,7 @@ class User(Model):
     id = fields.UUIDField(pk=True, default=uuid.uuid4)
     display_name = fields.CharField(max_length=255, null=True)
     username = fields.CharField(max_length=255, unique=True, index=True)
+    bio = fields.TextField(max_length=255, null=True)
     email = fields.CharField(max_length=255)
     hashed_password = fields.CharField(max_length=255)
     disabled = fields.BooleanField(default=False)

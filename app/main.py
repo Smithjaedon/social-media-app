@@ -5,11 +5,11 @@ from tortoise.contrib.fastapi import register_tortoise
 
 from app.auth import router as auth
 from app.database import TORTOISE_ORM
-from app.routers import comments, follows, posts, users
+from app.routers import bio, comments, follows, posts, users
 
 app = FastAPI()
 
-origins = ["http://localhost:5173"]
+origins = ["http://localhost:5173", "http://localhost:5174"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +27,7 @@ register_tortoise(
 )
 
 app.include_router(auth)
+app.include_router(bio.router)
 app.include_router(users.router)
 app.include_router(posts.router)
 app.include_router(follows.router)

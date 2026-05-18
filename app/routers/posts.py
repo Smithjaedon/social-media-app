@@ -1,4 +1,3 @@
-import random
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -23,7 +22,7 @@ async def get_posts(token: TokenDep):
             comments_count=Count("comments", distinct=True),
         )
     )
-    return posts
+    return list(posts)
 
 
 @router.get("/posts/by-username", response_model=Page[PostsRead])
@@ -52,7 +51,7 @@ async def create_post(payload: PostCreate, token: TokenDep):
         title=payload.title,
         content=payload.content,
     )
-    await post.fetch_related("author", "comments", "likes")
+    await post.fetch_related("author")
     return post
 
 
@@ -74,7 +73,7 @@ async def delete_post(post_id: uuid.UUID, token: TokenDep):
     post = await Post.get_or_none(id=post_id).prefetch_related("author")
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
-    if post.author_id != token.id:
+    if str(post.author.id) != str(token.id):
         raise HTTPException(status_code=403, detail="Not your post")
     await post.delete()
     return post
@@ -112,11 +111,13 @@ async def get_feed(token: TokenDep):
     posts = (
         await Post.all()
         .prefetch_related("author", "comments__author")
-        .exclude(author_id=token.id)
+        .exclude(author__id=str(token.id))
         .annotate(
             like_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
-            is_liked=Count("likes", distinct=True, _filter=Q(likes__user_id=token.id)),
+            is_liked=Count(
+                "likes", distinct=True, _filter=Q(likes__user_id=str(token.id))
+            ),
         )
         .order_by("-like_count")
     )

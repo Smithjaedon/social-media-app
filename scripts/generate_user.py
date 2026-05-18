@@ -21,7 +21,7 @@ async def seed():
     await Tortoise.generate_schemas()
 
     users = []
-    for _ in range(40):
+    for _ in range(100):
         user = await User.create(
             id=uuid.uuid4(),
             display_name=fake.name(),
