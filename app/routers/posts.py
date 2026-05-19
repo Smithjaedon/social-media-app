@@ -2,11 +2,11 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 from fastapi_pagination import Page, paginate
-from tortoise.expressions import Q
+from tortoise.expressions import Q, Subquery
 from tortoise.functions import Count
 
 from app.auth import TokenDep
-from app.models import Like, Post
+from app.models import Follow, Like, Post
 from app.schemas import PostCreate, PostDetailRead, PostsRead
 
 router = APIRouter()
@@ -34,6 +34,7 @@ async def get_posts_by_username(username: str, token: TokenDep):
             like_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
         )
+        .all()
     )
     return paginate(posts)
 
@@ -106,7 +107,7 @@ async def unlike_post(post_id: uuid.UUID, token: TokenDep):
     return {"message": "unliked", "like_count": like_count}
 
 
-@router.get("/feed", response_model=Page[PostDetailRead])
+@router.get("/feed", response_model=Page[PostsRead])
 async def get_feed(token: TokenDep):
     posts = (
         await Post.all()
@@ -115,10 +116,23 @@ async def get_feed(token: TokenDep):
         .annotate(
             like_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
-            is_liked=Count(
-                "likes", distinct=True, _filter=Q(likes__user_id=str(token.id))
-            ),
         )
         .order_by("-like_count")
     )
-    return paginate(posts)
+
+    author_ids = [post.author.id for post in posts]
+    followed_ids = set(
+        await Follow.filter(
+            follower_id=token.id,
+            following_id__in=author_ids,
+        ).values_list("following_id", flat=True)
+    )
+
+    result = []
+    for post in posts:
+        post.author.has_followed = post.author.id in followed_ids
+        post.has_liked = await Like.filter(
+            user_id=str(token.id), post_id=post.id
+        ).exists()
+        result.append(post)
+    return paginate(result)

@@ -39,6 +39,7 @@ class PostsRead(BaseModel):
     content: str
     like_count: int = Field(default=0)
     comments_count: int = Field(default=0)
+    has_liked: bool = Field(default=False)
     created_at: datetime
     author: UserRead
     model_config = ConfigDict(from_attributes=True)
@@ -53,7 +54,7 @@ class PostDetailRead(BaseModel):
     created_at: datetime
     author: UserRead
     comments: list[CommentRead]
-    is_liked: bool = Field(default=False)
+    has_liked: bool = Field(default=False)
     model_config = ConfigDict(from_attributes=True)
 
 

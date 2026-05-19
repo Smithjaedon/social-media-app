@@ -1,20 +1,18 @@
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from fastapi_pagination import Page
-from fastapi_pagination.ext.tortoise import apaginate
-from tortoise.expressions import Q
+from fastapi_pagination import Page, paginate
 from tortoise.functions import Count
 
 from app.auth import TokenDep
-from app.models import Follow, Post, User
+from app.models import Follow, Like, Post, User
 from app.schemas import FollowRead, PostDetailRead, PostsRead
 
 router = APIRouter()
 
 
 @router.post("/user/{id}/follow", response_model=FollowRead)
-async def foller_user(id: uuid.UUID, token: TokenDep):
+async def follow_user(id: uuid.UUID, token: TokenDep):
     to_follow_user = await User.get(id=id)
     if not to_follow_user:
         raise HTTPException(status_code=404, detail="Cannot find user")
@@ -26,7 +24,10 @@ async def foller_user(id: uuid.UUID, token: TokenDep):
 
 @router.delete("/user/{id}/unfollow")
 async def unfollow_user(id: uuid.UUID, token: TokenDep):
-    follow = await Follow.get(id=id)
+    user = await User.get_or_none(id=id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Cannot find user")
+    follow = await Follow.filter(following=user, follower=token).first()
     if not follow:
         raise HTTPException(status_code=404, detail="user not followed")
     await follow.delete()
@@ -43,12 +44,16 @@ async def get_following(token: TokenDep):
         "following_id", flat=True
     )
     posts = (
-        Post.filter(author_id__in=following_ids)
+        await Post.filter(author_id__in=following_ids)
         .prefetch_related("author", "comments__author")
         .annotate(
             like_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
-            is_liked=Count("likes", distinct=True, _filter=Q(likes__user_id=token.id)),
         )
     )
-    return await apaginate(posts)
+
+    result = []
+    for post in posts:
+        post.has_liked = await Like.filter(user_id=token.id, post_id=post.id).exists()
+        result.append(post)
+    return paginate(result)

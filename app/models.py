@@ -54,26 +54,6 @@ class Comment(Model):
         table = "comments"
 
 
-class Reply(Model):
-    id = fields.UUIDField(pk=True, default=uuid.uuid4)
-    content = fields.TextField()
-    created_at = fields.DatetimeField(auto_now_add=True)
-
-    comment: fields.ForeignKeyRelation[Comment] = fields.ForeignKeyField(
-        "models.Comment", related_name="replies"
-    )
-    author: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
-        "models.User", related_name="replies"
-    )
-    parent_reply: fields.ForeignKeyRelation["Reply"] = fields.ForeignKeyField(
-        "models.Reply", related_name="child_replies", null=True
-    )
-    likes: fields.ReverseRelation["Like"]
-
-    class Meta:
-        table = "replies"
-
-
 class Like(Model):
     id = fields.IntField(pk=True)
 

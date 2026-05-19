@@ -66,13 +66,10 @@ async def get_user_by_id(user_id: uuid.UUID) -> User | None:
     return await User.get_or_none(id=user_id)
 
 
-async def authenticate_user(username: str, password: str) -> User | bool:
+async def authenticate_user(username: str, password: str) -> User:
     user = await get_user(username)
-    if not user:
-        verify_password(password, DUMMY_HASH)
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
+    if not user or not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect credentials")
     return user
 
 
